@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Interactive 3D map and flyover of South Murwillumbah, NSW: zoning, the bridge, Prospero Street, the railway station, River Street, St Joseph's and the levee." />
+  <title>South Murwillumbah 3D</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+</head>
+<body>
+  <main id="app">
+    <div id="viewport" aria-label="3D map of South Murwillumbah"></div>
+
+    <header class="title-card">
+      <p class="eyebrow">Tweed Shire · NSW</p>
+      <h1>South Murwillumbah</h1>
+      <p class="subtitle">Town layout in 3D</p>
+    </header>
+
+    <div class="map-tools">
+      <button id="btn-home" title="Reset view (H)">⌂ Overview</button>
+      <button id="btn-panel" class="only-mobile" aria-expanded="false" aria-controls="panel">☰ Explore</button>
+    </div>
+
+    <aside id="panel">
+      <section>
+        <h2 class="section-title">Flyovers</h2>
+        <div class="tour-buttons">
+          <button class="tour-btn" data-tour="guided"><span>▶</span><div><b>Guided tour</b><small>All key features, step by step</small></div></button>
+          <button class="tour-btn" data-tour="residential"><span>▶</span><div><b>Residential flyover</b><small>River Street, south from the bridge</small></div></button>
+          <button class="tour-btn" data-tour="commercial"><span>▶</span><div><b>Commercial flyover</b><small>Bridge, Prospero St and the station</small></div></button>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">Key features</h2>
+        <ul id="feature-list" class="feature-list"></ul>
+      </section>
+
+      <section>
+        <h2 class="section-title">Layers</h2>
+        <div class="layer-grid">
+          <label class="toggle"><input type="checkbox" id="lyr-zoning" /> <span>Zoning</span></label>
+          <label class="toggle"><input type="checkbox" id="lyr-highlights" checked /> <span>Key features</span></label>
+          <label class="toggle"><input type="checkbox" id="lyr-labels" checked /> <span>Labels</span></label>
+          <label class="toggle"><input type="checkbox" id="lyr-streets" checked /> <span>Street names</span></label>
+        </div>
+        <div class="field">
+          <span>Zoning opacity</span>
+          <input type="range" id="zoning-opacity" min="0.1" max="0.9" step="0.05" value="0.55" />
+        </div>
+        <div class="field">
+          <span>Surface</span>
+          <div class="segmented" role="group" aria-label="Surface model">
+            <button id="surf-lidar" aria-pressed="true">LiDAR 3D</button>
+            <button id="surf-ground" aria-pressed="false">Bare earth + buildings</button>
+          </div>
+        </div>
+        <div class="field">
+          <span>Vertical exaggeration <output id="exag-out">1.0×</output></span>
+          <input type="range" id="exag" min="1" max="3" step="0.25" value="1" />
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">Zoning legend <small>Tweed LEP 2014 · click to isolate</small></h2>
+        <ul id="legend" class="legend"></ul>
+      </section>
+
+      <section class="about">
+        <details>
+          <summary>About the data</summary>
+          <p>Terrain is a 1 m LiDAR surface model (roofs, trees, bridge deck) and a 1 m bare-earth DEM with river bathymetry. Both are in GDA2020 / MGA zone 56, and the vertical datum is assumed to be AHD. Aerial imagery at 0.25 m comes from NSW Spatial Services. Zoning is from the NSW Planning Portal (Tweed LEP 2014). Roads, rail and parks are from OpenStreetMap contributors. The school lot is from the NSW cadastre. Building boxes were derived from the LiDAR. The levee line was traced from the DEM crest and is indicative only.</p>
+          <p>Controls: left-drag pans, right-drag (or two fingers) rotates and tilts, and the scroll wheel zooms. Click a feature or zone for details. Press H to return to the overview, and Esc to stop a tour.</p>
+        </details>
+      </section>
+    </aside>
+
+    <section id="info-card" hidden aria-live="polite">
+      <button class="close" id="info-close" aria-label="Close">×</button>
+      <p class="eyebrow" id="info-kicker"></p>
+      <h2 id="info-title"></h2>
+      <p id="info-text"></p>
+      <dl id="info-stats"></dl>
+      <div id="info-extra"></div>
+    </section>
+
+    <section id="tour-bar" hidden>
+      <div class="tour-head">
+        <div>
+          <p class="eyebrow" id="tour-name"></p>
+          <h3 id="tour-chapter"></h3>
+        </div>
+        <div class="tour-controls">
+          <button id="tour-prev" aria-label="Previous">‹</button>
+          <button id="tour-pause" aria-label="Pause">❚❚</button>
+          <button id="tour-next" aria-label="Next">›</button>
+          <button id="tour-exit" aria-label="Exit tour">✕</button>
+        </div>
+      </div>
+      <p id="tour-text"></p>
+      <div class="tour-progress"><i id="tour-fill"></i></div>
+    </section>
+
+    <div id="readout" hidden></div>
+    <div id="compass" title="Click to face north"><div id="compass-needle"><span>N</span></div></div>
+    <div id="scale"><i id="scale-bar"></i><span id="scale-label"></span></div>
+    <div class="credits">Imagery © NSW Spatial Services · Zoning © NSW DPHI · Map data © OpenStreetMap contributors</div>
+
+    <div id="loading"><div class="spinner"></div><p id="loading-text">Loading terrain…</p><div class="load-bar"><i id="load-fill"></i></div></div>
+  </main>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

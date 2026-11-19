@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+scripts/raw/*.npy
+scripts/raw/*.npz
+scripts/raw/*.png
+scripts/raw/lots.json
+__pycache__/
