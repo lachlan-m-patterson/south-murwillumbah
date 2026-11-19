@@ -5,7 +5,7 @@ import {
   ZONE_STYLE, angleDelta, decodeHeights, easeInOut, lineLength, lineParts, mgaToLonLat, polygonArea,
   polygonContains, resample, sampleGrid, zoneAreas, zoneAt
 } from './geo.js';
-import { FEATURES, GUIDED, OVERVIEW, TOURS } from './content.js';
+import { FEATURES, GUIDED, OVERVIEW } from './content.js';
 import './style.css';
 
 // Colours are authored as display values; keep them unconverted end to end.
@@ -42,9 +42,10 @@ labelRenderer.domElement.style.inset = '0';
 labelRenderer.domElement.style.pointerEvents = 'none';
 viewport.appendChild(labelRenderer.domElement);
 
-document.body.style.background = 'linear-gradient(#a9c2d0 0%, #d7e2e2 45%, #e3e8dc 100%)';
+const atlas = { surround: '#E9EDE4', river: '#397B80', buildings: '#ECE9DF' };
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const scene = new THREE.Scene();
-const FOG = new THREE.Color('#dde5df');
+const FOG = new THREE.Color(atlas.surround);
 const camera = new THREE.PerspectiveCamera(45, 1, 2, 20000);
 const world = new THREE.Group();     // y scaled by vertical exaggeration
 scene.add(world);
@@ -69,7 +70,7 @@ function resize() {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
-window.addEventListener('resize', resize);
+new ResizeObserver(resize).observe(viewport);
 resize();
 
 // ------------------------------------------------------------------ coordinate helpers
@@ -274,10 +275,10 @@ function buildWater() {
   g.rotateX(-Math.PI / 2);
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
-    uniforms: { time: { value: 0 }, fogColor: { value: FOG } },
+    uniforms: { river: { value: new THREE.Color(atlas.river) }, time: { value: 0 }, fogColor: { value: FOG } },
     vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
     fragmentShader: `
-      uniform float time; uniform vec3 fogColor; varying vec3 vW;
+      uniform vec3 river; uniform float time; uniform vec3 fogColor; varying vec3 vW;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
       float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
         return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+1.),f.x), f.y); }
@@ -285,7 +286,7 @@ function buildWater() {
         vec3 v = normalize(cameraPosition - vW);
         float fres = pow(1.0 - max(v.y, 0.0), 3.0);
         float r = n(vW.xz*0.18 + vec2(time*0.25, time*0.1)) * 0.6 + n(vW.xz*0.6 - vec2(time*0.4, 0.)) * 0.4;
-        vec3 deep = vec3(0.17, 0.29, 0.30), sky = vec3(0.70, 0.79, 0.84);
+        vec3 deep = river, sky = vec3(0.70, 0.79, 0.84);
         vec3 col = mix(deep, sky, 0.18 + fres * 0.6) + (r - 0.5) * 0.05;
         col = mix(col, fogColor, smoothstep(2200., 6000., distance(cameraPosition, vW)) * 0.85);
         gl_FragColor = vec4(col, 0.80 + fres * 0.15);
@@ -464,19 +465,16 @@ function buildBuildings() {
   const rows = F.buildings.rows;
   const geo = new THREE.BoxGeometry(1, 1, 1);
   geo.translate(0, 0.5, 0);
-  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const mat = new THREE.MeshLambertMaterial({ color: atlas.buildings });
   buildings = new THREE.InstancedMesh(geo, mat, rows.length);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-  const c = new THREE.Color(), white = new THREE.Color('#f4f1ea');
   const [ox, oy] = F.buildings.origin;
-  rows.forEach(([x, y, len, wid, hgt, rot, gnd, zone], i) => {
+  rows.forEach(([x, y, len, wid, hgt, rot, gnd], i) => {
     p.set(wx(ox + x), gnd - 0.3, wz(oy + y));
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(rot));
     s.set(len, hgt + 0.3, wid);
     m.compose(p, q, s);
     buildings.setMatrixAt(i, m);
-    c.set(ZONE_STYLE[zone]?.color || '#dddddd').lerp(white, 0.35);
-    buildings.setColorAt(i, c);
   });
   buildings.visible = false;
   world.add(buildings);
@@ -563,6 +561,10 @@ function buildLabels() {
 function updateLabelVisibility() {
   const camPos = camera.position;
   const v = new THREE.Vector3();
+  for (const l of labels.poi) {
+    l.getWorldPosition(v);
+    l.visible = l.userData.id === 'bridge' || l.userData.id === selected || v.distanceTo(camPos) < 900;
+  }
   for (const l of labels.street) {
     l.getWorldPosition(v);
     const d = v.distanceTo(camPos);
@@ -677,6 +679,13 @@ function placeCamera(e, n, ty, dist, az, tilt, target = controls.target) {
 function flyTo(view, duration) {
   const from = currentView();
   const to = { ...view, ty: Math.max(hAt(...view.target), meta.waterLevel) * exag };
+  if (reducedMotion.matches) {
+    flight = null;
+    placeCamera(...to.target, to.ty, to.dist, to.az, to.tilt);
+    controls.enabled = true;
+    controls.update();
+    return Promise.resolve();
+  }
   const move = Math.hypot(to.target[0] - from.target[0], to.target[1] - from.target[1]) + Math.abs(to.dist - from.dist);
   flight = { from, to, t: 0, duration: duration ?? THREE.MathUtils.clamp(1.1 + move / 900, 1.4, 3.6), dAz: angleDelta(from.az, to.az) };
   controls.enabled = false;
@@ -695,47 +704,22 @@ function stepFlight(dt) {
   if (flight.t >= 1) {
     const done = flight.resolve;
     flight = null;
-    if (!tour || tour.kind === 'guided') controls.enabled = true;
+    controls.enabled = true;
     controls.update();
     done?.();
   }
 }
 
 // ------------------------------------------------------------------ tours
-function startTour(kind) {
+function startTour() {
   stopTour();
   hideCard();
   closePanelMobile();
-  document.querySelectorAll('.tour-btn').forEach(b => b.classList.toggle('active', b.dataset.tour === kind));
+  document.querySelector('.tour-btn').classList.add('active');
   $('tour-bar').hidden = false;
-  if (kind === 'guided') {
-    tour = { kind, step: -1, playing: true, timer: 0, hold: 9 };
-    $('tour-name').textContent = 'Guided tour';
-    guidedGo(0);
-  } else {
-    const def = TOURS[kind];
-    const curve = new THREE.CatmullRomCurve3(def.path.map(([e, n]) => new THREE.Vector3(wx(e), 0, wz(n))), false, 'centripetal');
-    const length = curve.getLength();
-    tour = { kind, def, curve, length, s: 0, playing: true, chapter: -1, look: new THREE.Vector3(), started: false };
-    $('tour-name').textContent = def.title;
-    controls.enabled = false;
-    // fly to the start, then roll
-    const p0 = pathPose(tour, 0);
-    flight = null;
-    const view = { target: [toE(p0.look.x), toN(p0.look.z)], dist: p0.pos.distanceTo(p0.look), az: 0, tilt: 0 };
-    const o = p0.pos.clone().sub(p0.look);
-    view.az = (THREE.MathUtils.radToDeg(Math.atan2(o.x, -o.z)) + 360) % 360;
-    view.tilt = THREE.MathUtils.radToDeg(Math.acos(o.y / o.length()));
-    tour.playing = false;
-    const me = tour;
-    flyTo(view, 2.2).then(() => {
-      if (tour !== me) return;
-      tour.look.copy(p0.look);
-      tour.started = true; tour.playing = true;
-      controls.enabled = false;
-      updateTourButtons();
-    });
-  }
+  tour = { step: -1, playing: !reducedMotion.matches, timer: 0, hold: 9 };
+  $('tour-name').textContent = 'Guided flyover';
+  guidedGo(0);
   updateTourButtons();
 }
 
@@ -761,7 +745,7 @@ function guidedGo(i) {
   tour.step = i; tour.timer = 0;
   const f = FEATURES.find(x => x.id === GUIDED[i]);
   $('tour-chapter').textContent = `${i + 1} / ${n} · ${f.title}`;
-  $('tour-text').textContent = '';
+  $('tour-text').textContent = f.text;
   setZoning(!!f.zoning);
   selectFeature(f.id, false);
   $('info-card').hidden = true;
@@ -770,7 +754,6 @@ function guidedGo(i) {
   flyTo(f.view).then(() => {
     if (tour !== me) return;
     me.arrived = true;
-    $('info-card').hidden = false;
   });
 }
 
@@ -780,90 +763,23 @@ function finishGuided() {
   flyTo(OVERVIEW);
 }
 
-/** Camera and look-at pose at arc length s along a path tour. */
-function pathPose(t, s) {
-  const { curve, length, def } = t;
-  const at = d => {
-    const u = THREE.MathUtils.clamp(d / length, 0, 1);
-    const p = curve.getPointAt(u);
-    const extra = d < 0 ? d : d > length ? d - length : 0;
-    if (extra) p.add(curve.getTangentAt(u).multiplyScalar(extra));
-    return p;
-  };
-  const p = at(s - def.back), look = at(s + def.lead);
-  const tan = curve.getTangentAt(THREE.MathUtils.clamp(s / length, 0, 1));
-  const right = new THREE.Vector3(-tan.z, 0, tan.x);  // to the right of travel in x/z
-  p.addScaledVector(right, def.side);
-  const pe = toE(p.x), pn = toN(p.z);
-  p.y = (Math.max(hAt(pe, pn), 2) + def.altitude) * exag;
-  look.y = Math.max(gAt(toE(look.x), toN(look.z)), meta.waterLevel) * exag + 4;
-  return { pos: p, look };
-}
-
 function stepTour(dt) {
   if (!tour) return;
-  if (tour.kind === 'guided') {
-    if (tour.playing && tour.arrived) {
-      tour.timer += dt;
-      if (tour.timer >= tour.hold) guidedGo(tour.step + 1);
-    }
-    const frac = (tour.step + (tour.arrived ? Math.min(tour.timer / tour.hold, 1) : 0)) / GUIDED.length;
-    $('tour-fill').style.width = `${frac * 100}%`;
-    return;
+  if (tour.playing && tour.arrived) {
+    tour.timer += dt;
+    if (tour.timer >= tour.hold) { guidedGo(tour.step + 1); return; }
   }
-  if (!tour.started) return;
-  if (tour.playing) {
-    tour.s = Math.min(tour.length, tour.s + tour.def.speed * dt);
-    const pose = pathPose(tour, tour.s);
-    const k = 1 - Math.exp(-dt * 2.2);
-    camera.position.lerp(pose.pos, k);
-    tour.look.lerp(pose.look, k);
-    camera.lookAt(tour.look);
-    controls.target.copy(tour.look);
-    if (tour.s >= tour.length && camera.position.distanceTo(pose.pos) < 3) {
-      tour.playing = false;
-      controls.enabled = true;
-      $('tour-chapter').textContent = 'End of flyover';
-      $('tour-text').textContent = 'Explore freely from here. Pick another flyover or a feature, or press ⌂ for the overview.';
-      updateTourButtons();
-    }
-  }
-  const u = tour.s / tour.length;
-  $('tour-fill').style.width = `${u * 100}%`;
-  const chapters = tour.def.chapters;
-  let ci = 0;
-  for (let i = 0; i < chapters.length; i++) if (u >= chapters[i].at) ci = i;
-  if (ci !== tour.chapter && tour.s < tour.length) {
-    tour.chapter = ci;
-    const c = chapters[ci];
-    $('tour-chapter').textContent = c.title;
-    $('tour-text').textContent = c.text;
-    selected = c.feature || (tour.kind === 'residential' ? 'river' : u > 0.3 && u < 0.62 ? 'prospero' : null);
-    updateEmphasis();
-  }
+  const frac = (tour.step + Math.min(tour.timer / tour.hold, 1)) / GUIDED.length;
+  $('tour-fill').style.width = `${frac * 100}%`;
 }
 
 function tourSkip(dir) {
-  if (!tour) return;
-  if (tour.kind === 'guided') { guidedGo(tour.step + dir); return; }
-  const ch = tour.def.chapters;
-  const u = tour.s / tour.length;
-  let i = ch.findIndex(c => c.at > u + 0.001);
-  if (i === -1) i = ch.length;
-  const target = dir > 0 ? i : Math.max(0, i - 2);
-  if (target >= ch.length) { tour.s = tour.length; return; }
-  tour.s = ch[target].at * tour.length;
-  tour.chapter = -1;
-  tour.playing = true;
-  controls.enabled = false;
-  updateTourButtons();
+  if (tour) guidedGo(tour.step + dir);
 }
 
 function tourPauseToggle() {
   if (!tour) return;
-  if (tour.kind !== 'guided' && tour.s >= tour.length) { tour.s = 0; tour.chapter = -1; }
   tour.playing = !tour.playing;
-  if (tour.kind !== 'guided') controls.enabled = !tour.playing;
   updateTourButtons();
 }
 
@@ -945,17 +861,16 @@ let downAt = null;
 renderer.domElement.addEventListener('pointerdown', ev => {
   downAt = [ev.clientX, ev.clientY];
   flight && !tour && (flight = null, controls.enabled = true);
-  if (tour && tour.kind !== 'guided' && tour.playing && tour.started) { tour.playing = false; controls.enabled = true; updateTourButtons(); }
-  if (tour && tour.kind === 'guided' && tour.playing) { tour.playing = false; updateTourButtons(); }
+  if (tour?.playing) { tour.playing = false; updateTourButtons(); }
 });
 renderer.domElement.addEventListener('pointerup', ev => {
   if (!downAt || Math.hypot(ev.clientX - downAt[0], ev.clientY - downAt[1]) > 5) return;
   const hit = pick(ev.clientX, ev.clientY);
   if (!hit) return;
   const fid = $('lyr-highlights').checked ? featureAt(hit.e, hit.n) : null;
-  if (fid) { selectFeature(fid, false); return; }
+  if (fid) { stopTour(); selectFeature(fid, false); return; }
   const z = zoneAt(F.zoning, hit.e, hit.n);
-  if (z) showZoneCard(z, hit.e, hit.n);
+  if (z) { stopTour(); showZoneCard(z, hit.e, hit.n); }
 });
 renderer.domElement.addEventListener('pointermove', onHover);
 renderer.domElement.addEventListener('pointerleave', () => ($('readout').hidden = true));
@@ -1008,13 +923,14 @@ function buildUi() {
   $('surf-ground').addEventListener('click', () => setMode('ground'));
   $('exag').addEventListener('input', e => setExag(Number(e.target.value)));
   $('btn-home').addEventListener('click', () => { stopTour(); hideCard(); flyTo(OVERVIEW); });
-  $('compass').addEventListener('click', () => { const v = currentView(); flyTo({ target: v.target, dist: v.dist, az: 180, tilt: v.tilt }, 1.2); });
+  $('btn-top').addEventListener('click', () => { stopTour(); flyTo({ ...currentView(), az: 180, tilt: 0 }); });
+  $('compass').addEventListener('click', () => { stopTour(); const v = currentView(); flyTo({ target: v.target, dist: v.dist, az: 180, tilt: v.tilt }, 1.2); });
   $('info-close').addEventListener('click', hideCard);
   $('tour-exit').addEventListener('click', () => { stopTour(); selected = null; updateEmphasis(); });
   $('tour-pause').addEventListener('click', tourPauseToggle);
   $('tour-next').addEventListener('click', () => tourSkip(1));
   $('tour-prev').addEventListener('click', () => tourSkip(-1));
-  document.querySelectorAll('.tour-btn').forEach(b => b.addEventListener('click', () => startTour(b.dataset.tour)));
+  document.querySelectorAll('.tour-btn').forEach(b => b.addEventListener('click', () => startTour()));
   $('btn-panel').addEventListener('click', () => {
     const open = $('panel').classList.toggle('open');
     $('btn-panel').setAttribute('aria-expanded', String(open));
@@ -1023,7 +939,7 @@ function buildUi() {
     if (e.target.tagName === 'INPUT') return;
     if (e.key === 'Escape') { stopTour(); hideCard(); }
     if (e.key === 'h' || e.key === 'H') { stopTour(); hideCard(); flyTo(OVERVIEW); }
-    if (e.key === ' ' && tour) { e.preventDefault(); tourPauseToggle(); }
+    if (e.key === ' ' && tour && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'SUMMARY') { e.preventDefault(); tourPauseToggle(); }
   });
 }
 
@@ -1045,7 +961,7 @@ function setMode(m) {
 function setExag(v) {
   const ratio = v / exag;
   exag = v;
-  $('exag-out').textContent = `${v.toFixed(v % 1 ? 2 : 1).replace(/0$/, '')}×`;
+  $('exag-out').textContent = `${v.toLocaleString('en-AU', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}×`;
   world.scale.y = v;
   terrainMat.forEach(m => (m.uniforms.exag.value = v));
   const offset = camera.position.y - controls.target.y;
@@ -1058,7 +974,7 @@ function setExag(v) {
 const clock = new THREE.Clock();
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.1);
-  const t = clock.elapsedTime;
+  const t = reducedMotion.matches ? 0 : clock.elapsedTime;
   stepFlight(dt);
   stepTour(dt);
   if (!flight && controls.enabled) {

@@ -43,33 +43,4 @@ export const FEATURES = [
   }
 ];
 
-export const TOURS = {
-  residential: {
-    title: 'Residential flyover', subtitle: 'River Street, south from the bridge',
-    speed: 17, altitude: 95, back: 150, lead: 110, side: -45,
-    path: [[539330, 6866345], [539268, 6866272], [539208, 6866198], [539194, 6866172], [539150, 6866040], [539108, 6865907],
-      [539091, 6865806], [539130, 6865680], [539152, 6865560], [539171, 6865460], [539174, 6865300], [539176, 6865127]],
-    chapters: [
-      { at: 0.0, title: 'Off the bridge', text: 'River Street starts at the foot of the Alma Street bridge and runs south along the river.' },
-      { at: 0.16, title: 'Hartman Park', text: 'Parkland sits between the street and the levee. The houses face the river across this open strip.' },
-      { at: 0.3, title: 'Greville Street', text: 'Greville Street cuts east to Tweed Valley Way, past St Joseph’s Primary School and the playground reserve.', feature: 'school' },
-      { at: 0.5, title: 'Levee and riverbank', text: 'On the right, the levee follows the bank. Low-density housing (R2) fills the land between River Street and the highway.', feature: 'levee' },
-      { at: 0.78, title: 'South end', text: 'River Street narrows as the town gives way to cane fields and rural land at the southern edge.' }
-    ]
-  },
-  commercial: {
-    title: 'Commercial flyover', subtitle: 'Town centre → bridge → Prospero St → station',
-    speed: 15, altitude: 80, back: 130, lead: 90, side: -40,
-    path: [[538985, 6866470], [539050, 6866425], [539113, 6866394], [539187, 6866360], [539261, 6866326], [539268, 6866272],
-      [539330, 6866231], [539392, 6866189], [539427, 6866166], [539465, 6866238], [539518, 6866288], [539600, 6866292], [539660, 6866280]],
-    chapters: [
-      { at: 0.0, title: 'Murwillumbah town centre', text: 'The flight starts in the E2 Commercial Centre on the north bank.' },
-      { at: 0.16, title: 'Alma Street Bridge', text: 'The bridge carries traffic over the Tweed into South Murwillumbah.', feature: 'bridge' },
-      { at: 0.42, title: 'Prospero Street', text: 'South Murwillumbah’s shopping strip: shops, offices and showrooms in E3 Productivity Support zoning.', feature: 'prospero' },
-      { at: 0.66, title: 'Tweed Valley Way', text: 'At the junction the highway heads north-east towards the old railway yard.' },
-      { at: 0.82, title: 'Railway station', text: 'The former terminus of the Murwillumbah line, now the start of the rail trail.', feature: 'station' }
-    ]
-  }
-};
-
-export const GUIDED = ['zoning', 'bridge', 'prospero', 'station', 'river', 'school', 'levee'];
+export const GUIDED = ['bridge', 'prospero', 'station', 'river', 'school', 'levee', 'zoning'];

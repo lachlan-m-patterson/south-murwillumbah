@@ -6,10 +6,10 @@ Live site: https://lachlan-m-patterson.github.io/south-murwillumbah/
 
 ## What's in the viewer
 
-- **LiDAR 3D surface** (roofs, trees, bridge deck) or **bare earth + buildings** (LiDAR building boxes coloured by zone), draped with 0.25 m aerial imagery.
+- **LiDAR 3D surface** (roofs, trees, bridge deck) or **bare earth + buildings** (matte limestone-coloured LiDAR building boxes), draped with 0.25 m aerial imagery.
 - **Zoning overlay** (Tweed LEP 2014) with opacity control, a legend with areas, click-to-isolate, and a zone identify on click.
 - **Key features** list. Each one flies the camera to the feature and opens a card with figures; the levee card includes a crest profile.
-- **Flyovers**: a guided tour of all features, a residential flyover along River Street, and a commercial flyover across the bridge, along Prospero Street to the station.
+- **Guided flyover** begins at the Alma Street bridge. Readers can advance stop by stop, with instant camera changes when reduced motion is enabled. The map follows the [Tweed Valley atlas style guide](tweed-valley-style-guide.md).
 - Hover readout with zone, ground height, MGA56 and lat/long; vertical exaggeration; compass; scale bar.
 
 Controls: left-drag pans, right-drag (or two fingers) rotates, the wheel zooms. Press H for the overview, Esc to stop a tour, Space to pause.
